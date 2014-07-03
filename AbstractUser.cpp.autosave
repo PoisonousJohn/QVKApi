@@ -1,5 +1,0 @@
-#include "AbstractUser.h"
-
-poison::AbstractUser::AbstractUser()
-{
-}
