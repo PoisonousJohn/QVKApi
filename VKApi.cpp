@@ -5,7 +5,6 @@
 #include <QNetworkAccessManager>
 #include <QJsonObject>
 #include <QJsonArray>
-#include <QSettings>
 #include "VKApi.h"
 
 static const QString kApiBaseUrl = "https://api.vk.com/method/";
@@ -16,9 +15,8 @@ namespace poison
 {
 
 
-VKApi::VKApi(QSettings *settings_)
+VKApi::VKApi()
     : loginView(0)
-    , settings(settings_)
     , user(new User())
 {
 
@@ -88,7 +86,7 @@ QUrl VKApi::getLoginUrl() const {
     QUrl url(kAuthUrl);
     QUrlQuery q;
     q.addQueryItem("client_id", appId);
-    q.addQueryItem("scope", "friends");
+    q.addQueryItem("scope", scope);
     q.addQueryItem("display", "popup");
     q.addQueryItem("redirect_uri", kRedirectUrl);
     q.addQueryItem("response_type", "token");
@@ -97,9 +95,10 @@ QUrl VKApi::getLoginUrl() const {
     return url;
 }
 
-void VKApi::init(const QString& appId)
+void VKApi::init(const QString& appId, const QString& scope)
 {
     this->appId = appId;
+    this->scope = scope;
     qDebug() << "VK inited";
 }
 
@@ -131,7 +130,7 @@ void VKApi::loginUrlChanged(const QUrl& url) {
         qDebug() << "got access token: " << accessToken << "\n";
 
         QMap<QString, QString> params;
-        method("users.get", params, [this]( const QJsonDocument* json, QNetworkReply::NetworkError err) {
+        method("users.get", params, [this]( const QJsonDocument* json, QNetworkReply::NetworkError) {
             loginView->close();
             loginView = 0;
 

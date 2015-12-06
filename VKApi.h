@@ -31,10 +31,10 @@ namespace poison {
     signals:
         void loginStatusChanged();
     public  :
-        VKApi(QSettings* settings);
+        VKApi();
 
         QUrl getLoginUrl() const;
-        Q_INVOKABLE void init(const QString& appId);
+        Q_INVOKABLE void init(const QString& appId, const QString &scope);
         Q_INVOKABLE void login();
         Q_INVOKABLE void logout();
         Q_INVOKABLE bool isLoggedIn() const;
@@ -46,6 +46,7 @@ namespace poison {
         );
     protected:
         QString appId;
+        QString scope;
         QString accessToken;
         QWebView* loginView;
         QNetworkAccessManager net;

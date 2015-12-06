@@ -14,7 +14,7 @@ ApplicationWindow {
         anchors.fill: parent
         button1.onClicked: {
             consoleStr += "Authorization started\n"
-            vk.init(appId)
+            vk.init(appId, "friends")
             vk.login()
         }
         Connections {

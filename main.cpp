@@ -9,8 +9,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QQmlApplicationEngine engine;
-    QSettings settings;
-    engine.rootContext()->setContextProperty("vk", new poison::VKApi(&settings));
+    engine.rootContext()->setContextProperty("vk", new poison::VKApi());
     engine.load(QUrl(QStringLiteral("qrc:/main.qml")));
 
     return app.exec();
