@@ -1,11 +1,10 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/bind.hpp>
-#include <ServiceContainer/ServiceContainer.h>
 #include <QUrlQuery>
-#include <QWebView>
 #include <QNetworkRequest>
 #include <QNetworkAccessManager>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QSettings>
 #include "VKApi.h"
 
@@ -13,19 +12,23 @@ static const QString kApiBaseUrl = "https://api.vk.com/method/";
 static const QString kAuthUrl = "https://oauth.vk.com/authorize";
 static const QString kRedirectUrl = "http://oauth.vk.com/blank.html";
 
-poison::VKApi::VKApi(const QString&& appId_, QSettings *settings_)
-    : appId(appId_)
-    , loginView(0)
+namespace poison
+{
+
+
+VKApi::VKApi(QSettings *settings_)
+    : loginView(0)
     , settings(settings_)
+    , user(new User())
 {
 
 }
 
-bool poison::VKApi::isLoggedIn() const {
+bool VKApi::isLoggedIn() const {
     return accessToken.length();
 }
 
-void poison::VKApi::method(const QString &method,
+void VKApi::method(const QString &method,
         const QMap<QString, QString> params,
         std::function< void(const QJsonDocument*, QNetworkReply::NetworkError) > callback
 )  {
@@ -69,7 +72,7 @@ void poison::VKApi::method(const QString &method,
                 qDebug() << "bad json.\n";
                 error = QNetworkReply::NetworkError::UnknownContentError;
             } else {
-                jsonDoc = QJsonDocument( jsonDoc.object().value( "response" ).toObject() );
+                jsonDoc = QJsonDocument( jsonDoc.object().value( "response" ).toArray().at(0).toObject() );
                 json = &jsonDoc;
             }
         }
@@ -79,18 +82,9 @@ void poison::VKApi::method(const QString &method,
 
         reply->deleteLater();
     });
-//    connect(reply,
-//            static_cast< void(QNetworkReply::*)(QNetworkReply::NetworkError) >(&QNetworkReply::error),
-//            [reply, callback](QNetworkReply::NetworkError error) {
-//                qDebug() << "Network error: " << error << "\n";
-//                reply->deleteLater();
-//            }
-//    );
-//            [reply](QNetworkReply::NetworkError error) {
-//        reply->deleteLater();
 }
 
-QUrl poison::VKApi::getLoginUrl() const {
+QUrl VKApi::getLoginUrl() const {
     QUrl url(kAuthUrl);
     QUrlQuery q;
     q.addQueryItem("client_id", appId);
@@ -103,7 +97,13 @@ QUrl poison::VKApi::getLoginUrl() const {
     return url;
 }
 
-void poison::VKApi::login() {
+void VKApi::init(const QString& appId)
+{
+    this->appId = appId;
+    qDebug() << "VK inited";
+}
+
+void VKApi::login() {
     if (isLoggedIn() || loginView) {
         return;
     }
@@ -123,7 +123,7 @@ void poison::VKApi::login() {
 
 }
 
-void poison::VKApi::loginUrlChanged(const QUrl& url) {
+void VKApi::loginUrlChanged(const QUrl& url) {
     qDebug() << "login url filename: \n" << url.fileName() << "\n";
     if (url.fileName() == "blank.html") {
         QUrlQuery q(url.fragment());
@@ -136,19 +136,26 @@ void poison::VKApi::loginUrlChanged(const QUrl& url) {
             loginView = 0;
 
             if (json) {
+                auto obj = json->object();
+                qDebug() << obj.keys().join(",");
+                user->_name = obj["first_name"].toString() + " " + obj["last_name"].toString();
+                user->_uid = QString::number( obj["uid"].toInt() );
             } else {
                 this->logout();
                 this->login();
             }
 
+            emit loginStatusChanged();
         });
 
         loginView->setVisible(false);
     }
 }
 
-void poison::VKApi::logout() {
+void VKApi::logout() {
     accessToken.clear();
 }
 
 
+
+}
