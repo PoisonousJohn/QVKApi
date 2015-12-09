@@ -9,8 +9,10 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("vk", new poison::VKApi());
-    engine.load(QUrl(QStringLiteral("qrc:/main.qml")));
+    auto vk = new poison::VKApi();
+    vk->init(QStringLiteral("3296609"), QStringLiteral("friends,offline"));
+    engine.rootContext()->setContextProperty("vk", vk);
+    engine.load(QUrl(QStringLiteral("qrc:/analyzer.qml")));
 
     return app.exec();
 }

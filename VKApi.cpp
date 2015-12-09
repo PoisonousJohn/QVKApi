@@ -1,15 +1,17 @@
-#include <boost/algorithm/string/join.hpp>
-#include <boost/bind.hpp>
+#include <functional>
 #include <QUrlQuery>
 #include <QNetworkRequest>
 #include <QNetworkAccessManager>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QSettings>
 #include "VKApi.h"
 
 static const QString kApiBaseUrl = "https://api.vk.com/method/";
 static const QString kAuthUrl = "https://oauth.vk.com/authorize";
 static const QString kRedirectUrl = "http://oauth.vk.com/blank.html";
+static const QString kAccessTokenSetting = "AccessToken";
+static const QString kSettingsApplicationId = "QVKApi";
 
 namespace poison
 {
@@ -17,6 +19,8 @@ namespace poison
 
 VKApi::VKApi()
     : loginView(0)
+    , reqManager(&net)
+    , settings(new QSettings(kSettingsApplicationId))
     , user(new User())
 {
 
@@ -28,7 +32,7 @@ bool VKApi::isLoggedIn() const {
 
 void VKApi::method(const QString &method,
         const QMap<QString, QString> params,
-        std::function< void(const QJsonDocument*, QNetworkReply::NetworkError) > callback
+        std::function< void(const VKResponse&) > callback
 )  {
     QUrl url( kApiBaseUrl + method );
 
@@ -44,42 +48,13 @@ void VKApi::method(const QString &method,
         q.addQueryItem("access_token", accessToken);
     url.setQuery(q);
 
-    QNetworkRequest req;
-    req.setUrl(url);
+    auto req = new VKRequest(url);
 
-    qDebug() << "Sending request to: " << req.url().toString() << "\n";
-    auto reply = net.get(req);
-    connect(reply, &QNetworkReply::finished, [reply, callback]() {
-        QJsonDocument* json = 0;
-        QJsonDocument jsonDoc;
-        QNetworkReply::NetworkError error = reply->error();
-        qDebug() << "Finished reply: " << reply << "\n";
-        if (reply->error() != QNetworkReply::NetworkError::NoError) {
-            qDebug() << "Network error: " << reply->errorString() << "\n";
-        } else {
-            QJsonParseError parseErr;
-            auto data = reply->readAll();
-            jsonDoc = QJsonDocument::fromJson(data , &parseErr );
+    if (callback) {
+        connect(req, &VKRequest::finished, callback);
+    }
 
-            qDebug() << "got response <" << reply->url() << ">\n" << data << "\n\n\n";
-
-            if (parseErr.error != QJsonParseError::NoError) {
-                qDebug() << "failed to parse json: " << parseErr.errorString() << "\n";
-                error = QNetworkReply::NetworkError::UnknownContentError;
-            } else if (!jsonDoc.object().contains("response")) {
-                qDebug() << "bad json.\n";
-                error = QNetworkReply::NetworkError::UnknownContentError;
-            } else {
-                jsonDoc = QJsonDocument( jsonDoc.object().value( "response" ).toArray().at(0).toObject() );
-                json = &jsonDoc;
-            }
-        }
-
-        if (callback)
-            callback(json, error);
-
-        reply->deleteLater();
-    });
+    reqManager.sendRequest(req);
 }
 
 QUrl VKApi::getLoginUrl() const {
@@ -100,6 +75,15 @@ void VKApi::init(const QString& appId, const QString& scope)
     this->appId = appId;
     this->scope = scope;
     qDebug() << "VK inited";
+
+    accessToken = settings->value(kAccessTokenSetting).toString();
+    if (!accessToken.isEmpty())
+    {
+        getCurrentUserInfo([this](QPointer<User> currUser) {
+            setCurrentUser(currUser);
+            emit loginStatusChanged();
+        });
+    }
 }
 
 void VKApi::login() {
@@ -122,27 +106,58 @@ void VKApi::login() {
 
 }
 
+void VKApi::getCurrentUserInfo(std::function<void(QPointer<User>)> onComplete)
+{
+    QMap<QString, QString> params;
+    method("users.get", params, [this, onComplete]( const VKResponse& resp) {
+        if (!resp.isError()) {
+            auto obj = resp.getJson()->object();
+            qDebug() << obj.keys().join(",");
+            auto name = obj["first_name"].toString() + " " + obj["last_name"].toString();
+            auto uid = QString::number( obj["uid"].toInt() );
+            if (onComplete)
+            {
+                auto currUser = new User();
+                currUser->_name = name;
+                currUser->_uid = uid;
+                onComplete(QPointer<User>(currUser));
+            }
+        } else if (onComplete) {
+            onComplete(QPointer<User>());
+        }
+
+    });
+}
+
+void VKApi::setCurrentUser(const QPointer<User>& currUser)
+{
+    if (user)
+    {
+        user->deleteLater();
+    }
+
+    user = currUser;
+
+    if (user.isNull())
+    {
+        logout();
+        login();
+    }
+}
+
 void VKApi::loginUrlChanged(const QUrl& url) {
     qDebug() << "login url filename: \n" << url.fileName() << "\n";
     if (url.fileName() == "blank.html") {
         QUrlQuery q(url.fragment());
         accessToken = q.queryItemValue("access_token");
         qDebug() << "got access token: " << accessToken << "\n";
+        settings->setValue(kAccessTokenSetting, accessToken);
 
-        QMap<QString, QString> params;
-        method("users.get", params, [this]( const QJsonDocument* json, QNetworkReply::NetworkError) {
+        getCurrentUserInfo([this] (QPointer<User> currUser) {
             loginView->close();
             loginView = 0;
 
-            if (json) {
-                auto obj = json->object();
-                qDebug() << obj.keys().join(",");
-                user->_name = obj["first_name"].toString() + " " + obj["last_name"].toString();
-                user->_uid = QString::number( obj["uid"].toInt() );
-            } else {
-                this->logout();
-                this->login();
-            }
+            setCurrentUser(currUser);
 
             emit loginStatusChanged();
         });

@@ -1,6 +1,7 @@
 #ifndef VKAPI_H
 #define VKAPI_H
 
+#include <functional>
 #include <QObject>
 #include <QString>
 #include <QUrl>
@@ -9,6 +10,10 @@
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QWebView>
+#include <QPointer>
+
+#include "VKRequestManager.h"
+#include "VKResponse.h"
 
 class QWebView;
 class QSettings;
@@ -30,7 +35,9 @@ namespace poison {
         Q_OBJECT
     signals:
         void loginStatusChanged();
-    public  :
+    public: // properties
+        Q_PROPERTY(bool authorized READ isLoggedIn NOTIFY loginStatusChanged)
+    public:
         VKApi();
 
         QUrl getLoginUrl() const;
@@ -38,20 +45,25 @@ namespace poison {
         Q_INVOKABLE void login();
         Q_INVOKABLE void logout();
         Q_INVOKABLE bool isLoggedIn() const;
-        Q_INVOKABLE QVariant getUser() const { return QVariant::fromValue(user); }
+        Q_INVOKABLE QVariant getUser() const { return QVariant::fromValue(user.data()); }
         void method(
                 const QString& method,
                 const QMap<QString, QString> params = QMap<QString, QString>(),
-                std::function<void(const QJsonDocument*, QNetworkReply::NetworkError) > callback = 0
+                std::function<void(const VKResponse&) > callback = 0
         );
     protected:
+        void getCurrentUserInfo(std::function<void(QPointer<User>)> onComplete);
+        void setCurrentUser(const QPointer<User>& currUser);
+
+    protected: // members
         QString appId;
         QString scope;
         QString accessToken;
         QWebView* loginView;
         QNetworkAccessManager net;
+        VKRequestManager reqManager;
         QSettings* settings;
-        User* user;
+        QPointer<User> user;
 
 
     protected slots:

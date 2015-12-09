@@ -4,10 +4,16 @@ TEMPLATE = app
 QT += qml quick widgets webkit webkitwidgets
 
 
-HEADERS += VKApi.h
+HEADERS += VKApi.h \
+    VKResponse.h \
+    VKRequest.h \
+    VKRequestManager.h
 
 SOURCES += main.cpp \
-            VKApi.cpp
+            VKApi.cpp \
+    VKResponse.cpp \
+    VKRequest.cpp \
+    VKRequestManager.cpp
 
 
 RESOURCES += qml.qrc
