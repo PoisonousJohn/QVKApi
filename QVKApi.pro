@@ -1,7 +1,7 @@
 CONFIG += c++11
-TEMPLATE = app
+TEMPLATE = lib
 
-QT += qml quick widgets webkit webkitwidgets
+QT += webkit webkitwidgets
 
 
 HEADERS += VKApi.h \
@@ -9,8 +9,7 @@ HEADERS += VKApi.h \
     VKRequest.h \
     VKRequestManager.h
 
-SOURCES += main.cpp \
-            VKApi.cpp \
+SOURCES += VKApi.cpp \
     VKResponse.cpp \
     VKRequest.cpp \
     VKRequestManager.cpp
